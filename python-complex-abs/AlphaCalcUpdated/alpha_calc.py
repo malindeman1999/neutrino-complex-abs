@@ -383,7 +383,7 @@ def main():
     print(f"[main] Starting alpha workflow from {__file__}")
 
     # Set constants
-    constants_lowT_neutrino = {'Tc': 2, 'Tdb': 275, 'w0': 1.194e9 * 2 * np.pi, 'type': 'lowT'}
+    constants_lowT_neutrino = {'Tc': 3, 'Tdb': 275, 'w0': 1.194e9 * 2 * np.pi, 'type': 'lowT'}
     constants_NBTiN = {'Tc': 14, 'Tdb': 275, 'w0': 1e9 * 2 * np.pi, 'type': 'NbTiN'}
     constants = constants_lowT_neutrino
     # constants = constants_NBTiN

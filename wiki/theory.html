@@ -47,13 +47,14 @@
 
     <section class="card">
       <h2>State and Measurement Vectors</h2>
-      <p>Use the paper’s normalized demodulated state vector:</p>
+      <p>Use the paperâ€™s normalized demodulated state vector:</p>
       <p>\[
       Y(\omega)=
       \begin{bmatrix}
       r(\omega)\\
       \phi(\omega)\\
-      T_{TB}(\omega)
+      T_{KID}(\omega)\\
+      T_{ABS}(\omega)
       \end{bmatrix},
       \]</p>
       <p>and source vector \(N(\omega)\), related by Eq. (11):</p>
@@ -64,7 +65,7 @@
 
     <section class="card">
       <h2>Linearized Forward Model</h2>
-      <p>The theory used here follows the paper’s sideband-to-demodulated linear system and normalized matrix form (Eq. (8)–(13)) rather than an external factorized \(R/H\) state-space model.</p>
+      <p>The theory used here follows the paperâ€™s sideband-to-demodulated linear system and normalized matrix form (Eq. (8)â€“(13)) rather than an external factorized \(R/H\) state-space model.</p>
       <p>For implementation details of the matrix coefficients, see <a href="m-matrix.html">M Matrix</a>.</p>
     </section>
 
@@ -91,8 +92,8 @@
 
     <section class="card">
       <h2>Eq. (10)-(13): Normalized Sideband-to-Demodulated Model</h2>
-      <p>Eq. (10) defines voltage normalization (\(V_0=I_0R_0/2\)). Eq. (11) is the central linear system \(M\,Y=N\), where \(Y=[r,\phi,T]^T\) are demodulated normalized coordinates and \(N\) is the source/noise vector.</p>
-      <p>Eq. (12) gives the coordinate transforms from sideband variables to demodulated normalized variables. Eq. (13) expands \(M(\omega)\) explicitly in terms of \(Q, Q_i, \alpha, \beta, P_0, C, G, T_0\), and detuning.</p>
+      <p>Eq. (10) defines voltage normalization (\(V_0=I_0R_0/2\)). Eq. (11) is the central linear system \(M\,Y=N\), where this implementation uses \(Y=[r,\phi,T_{KID},T_{ABS}]^T\) and \(N\) as the source/noise vector.</p>
+      <p>Eq. (12) gives the coordinate transforms from sideband variables to demodulated normalized variables. Eq. (13) expands \(M(\omega)\) explicitly in terms of \(Q, Q_i, \alpha, \beta, P_0\), thermal capacities, conductances, \(T_0\), and detuning.</p>
       <p>Concise step-by-step transformation summary: <a href="paper-transform-summary.html">Paper Transform Summary</a>.</p>
       <p>Interpretation for implementation: build \(M(\omega)\) directly from measured or fitted resonator parameters, then solve \(Y=M^{-1}N\) for each source and frequency bin.</p>
       <p>Dedicated reference: <a href="m-matrix.html">M Matrix</a>.</p>
@@ -102,19 +103,19 @@
     <section class="card">
       <h2>Eq. (14)-(15): Time-Domain Dynamics and Pulse Model</h2>
       <p>Eq. (14) converts the frequency-domain model to time-domain dynamics \(\dot{Y}=M_tY+D_1^{-1}N\), where <a href="mt-stability.html#mt-from-momega">\(M_t\)</a> is obtained from \(M(\omega)\).</p>
-      <p>Eq. (15) gives explicit coupled ODEs for \(r(t)\), \(\phi(t)\), and \(T(t)\) on resonance. The absorbed calorimeter power enters as an additive source term \(P(t)/C\) in the thermal equation.</p>
+      <p>Eq. (15) gives explicit coupled ODEs for \(r(t)\), \(\phi(t)\), and thermal states on resonance. In this project, the thermal block is two-island: \(T_{KID}\) and \(T_{ABS}\) coupled by \(G_{ABS}\), with event power injected on \(T_{ABS}\).</p>
       <p>Use this form to check stability (all eigenvalues of \(M_t\) must have negative real parts), pulse shape, and thermal/electrical coupling behavior before noise propagation.</p>
     </section>
 
     <section class="card">
       <h2>Eq. (16)-(20): Noise Vectors and NEP</h2>
-      <p>Eq. (16): phonon noise enters as a thermal-band power source with RMS scale \(\sqrt{4k_BT_b^2G}\).</p>
+      <p>Eq. (16): bath-link phonon noise enters as a thermal-band power source with RMS scale \(\sqrt{4k_BT_b^2G}\). A second source is included for absorber-KID exchange, with scale \(\sqrt{4k_BT^2G_{ABS}}\) and vector \([0,0,+\delta P,-\delta P]^T\).</p>
       <p>Eq. (17): Johnson noise is represented in sideband form with separate amplitude-like and phase-like source vectors.</p>
       <p>Eq. (18): transformed normalized Johnson vectors \(N_{J,A}\) and \(N_{J,\phi}\), including the correlated Joule-power fluctuation component in the thermal entry.</p>
       <p>Eq. (19): excess electronic (quasiparticle generation) noise is modeled as a multiplier of the Johnson vectors, \(N_g=M_eN_J\), with \(M_e\sim\sqrt{E_{qp}/k_BT_0}\).</p>
       <p>Eq. (20): phase-direction NEP is computed from output phase noise divided by phase responsivity to power:</p>
       <p>\[
-      \mathrm{NEP}_{\phi}(\omega)=\left|\frac{[Y_{\mathrm{RMS}}(\omega)]_{\phi}}{(M^{-1})_{\phi,\,P}}\right|.
+      \mathrm{NEP}_{\phi}(\omega)=\left|\frac{[Y_{\mathrm{RMS}}(\omega)]_{\phi}}{(M^{-1})_{\phi,\,P_{ABS}}}\right|.
       \]</p>
       <p>This is the core equation to convert modeled/measured phase noise into calorimeter-equivalent input power noise.</p>
       <p>Python methods: <a href="../python/sensor.py"><code>Sensor.phase_responsivity_complex_rad_per_W_at_hz()</code></a>, <a href="../python/sensor.py"><code>Sensor.phase_responsivity_mag_rad_per_W_at_hz()</code></a>, <a href="../python/sensor.py"><code>Sensor.phase_responsivity_rad_per_W</code></a>, <a href="../python/sensor.py"><code>Sensor.nep_from_phase_asd_W_per_rtHz()</code></a>.</p>
@@ -125,7 +126,7 @@
       <ul>
         <li>Fit \(S_{21}(f,T,P)\) to extract \(Q_i, f_r\), and derivatives needed for Eq. (4) sensitivities.</li>
         <li>Construct \(M(\omega)\) with Eq. (10)-(13) and verify stable \(M_t\) from Eq. (14)-(15).</li>
-        <li>Build source vectors for phonon, Johnson, excess electronic, TLS, and readout noise using Eq. (16)-(19).</li>
+        <li>Build source vectors for bath phonon, absorber-KID link phonon, Johnson, excess electronic, TLS, and readout noise using Eq. (16)-(19).</li>
         <li>Propagate each source via \(Y=M^{-1}N\); sum output noise in quadrature (with correlations where needed).</li>
         <li>Compute \(\mathrm{NEP}_{\phi}\) with Eq. (20), then feed the resulting PSD into the optimal filter on the Signal Processing page.</li>
       </ul>
@@ -163,6 +164,8 @@
   </main>
 </body>
 </html>
+
+
 
 
 

@@ -48,8 +48,10 @@ class SensorInputs:
 
     # Material properties used with geometry (independent inputs)
     cv_absorber_J_per_m3K: float
+    cv_membrane_J_per_m3K: float
     kappa_leg_W_per_mK: float
     thermal_link_exponent_n: float
+    g_absorber_to_bath_ratio: float
 
     # Simplified TLS model inputs
     tls_phi_asd_100hz_per_rtHz: float
@@ -97,8 +99,11 @@ class Version1SensorInputs(SensorInputs):
     cap_thickness_m: float = 1.0e-6
     membrane_thickness_m: float = 1.0e-6
     cv_absorber_J_per_m3K: float = 0.075
+    # Set to preserve prior default C_kid ~ 15 eV/mK for current KID footprint and membrane thickness.
+    cv_membrane_J_per_m3K: float = 4.965423452479338e-2
     kappa_leg_W_per_mK: float = 1.5e-3
     thermal_link_exponent_n: float = 3.0
+    g_absorber_to_bath_ratio: float = 1000.0
     tls_phi_asd_100hz_per_rtHz: float = 1.0e-6
     tls_beta: float = 0.5
     f0_Hz: float = 1.0e9
@@ -216,8 +221,28 @@ class Sensor:
 
     @cached_property
     def C_J_per_K(self) -> float:
-        """Heat capacity converted from primary input heat_capacity_eV_per_mK."""
+        """Absorber heat capacity converted from primary input heat_capacity_eV_per_mK."""
         return self.heat_capacity_eV_per_mK * 1.0e3 * J_PER_EV
+
+    @cached_property
+    def C_abs_J_per_K(self) -> float:
+        """Absorber-island heat capacity."""
+        return self.C_J_per_K
+
+    @cached_property
+    def C_kid_J_per_K(self) -> float:
+        """KID-only-island heat capacity from footprint, membrane thickness, and membrane c_v."""
+        return self.kid_length_m * self.kid_width_m * self.membrane_thickness_m * self.cv_membrane_J_per_m3K
+
+    @cached_property
+    def C_total_J_per_K(self) -> float:
+        """Total heat capacity across absorber + KID islands."""
+        return self.C_abs_J_per_K + self.C_kid_J_per_K
+
+    @cached_property
+    def C_kid_eV_per_mK(self) -> float:
+        """Derived KID-only-island heat capacity in eV/mK."""
+        return self.C_kid_J_per_K / (1.0e3 * J_PER_EV)
 
     @cached_property
     def count_rate_Hz(self) -> float:
@@ -231,8 +256,8 @@ class Sensor:
 
     @cached_property
     def tau_th_s(self) -> float:
-        """Thermal decay tau from thermal link and heat capacity."""
-        return self.C_J_per_K / self.G_W_per_K
+        """Approximate bath-decay tau from KID-island heat capacity and bath link."""
+        return self.C_kid_J_per_K / self.G_W_per_K
 
     @cached_property
     def G_W_per_K(self) -> float:
@@ -240,6 +265,11 @@ class Sensor:
         if self.deltaT_abs_over_bath_setpoint_K <= 0.0:
             raise ValueError("T0_K must be greater than Tb_K to define positive thermal elevation")
         return self.P0_W / self.deltaT_abs_over_bath_setpoint_K
+
+    @cached_property
+    def G_absorber_W_per_K(self) -> float:
+        """Absorber<->KID conductance derived from bath-link conductance ratio."""
+        return self.g_absorber_to_bath_ratio * self.G_W_per_K
 
     @cached_property
     def deltaT_abs_over_bath_setpoint_K(self) -> float:
@@ -258,12 +288,12 @@ class Sensor:
 
     @cached_property
     def deltaT_event_full_absorption_K(self) -> float:
-        """Island temperature step from a fully absorbed Ho decay event."""
-        return self.ho_decay_energy_J / self.C_J_per_K
+        """Absorber-island temperature step from a fully absorbed Ho decay event."""
+        return self.ho_decay_energy_J / self.C_abs_J_per_K
 
     @cached_property
     def C_eV_per_mK(self) -> float:
-        """Island heat capacity in eV/mK (primary input value)."""
+        """Absorber heat capacity in eV/mK (primary input value)."""
         return self.heat_capacity_eV_per_mK
 
     @cached_property
@@ -418,6 +448,7 @@ class Sensor:
 
         asd_phase_johnson = np.zeros_like(freqs_hz)
         asd_phase_phonon = np.zeros_like(freqs_hz)
+        asd_phase_phonon_absorber_kid = np.zeros_like(freqs_hz)
         asd_phase_tls = np.zeros_like(freqs_hz)
         asd_phase_electronic = np.zeros_like(freqs_hz)
         phase_resp = np.zeros_like(freqs_hz)
@@ -426,6 +457,7 @@ class Sensor:
             y_j_a = self._propagate_noise_vector(self.n_johnson_A(), float(f_hz))
             y_j_phi = self._propagate_noise_vector(self.n_johnson_phi(), float(f_hz))
             y_ph = self._propagate_noise_vector(self.n_phonon(), float(f_hz))
+            y_ph_ak = self._propagate_noise_vector(self.n_phonon_absorber_kid(), float(f_hz))
             m_tls_f = self.m_tls_from_ratio(self.sf_over_f0sq_tls_at_hz(float(f_hz)), self.sf_over_f0sq_johnson_full)
             y_tls = self._propagate_noise_vector(self.n_tls_phi(m_tls_f), float(f_hz))
             y_e_a = self._propagate_noise_vector(self.n_electronic_A(), float(f_hz))
@@ -433,11 +465,18 @@ class Sensor:
 
             asd_phase_johnson[i] = np.sqrt(abs(y_j_a[1]) ** 2 + abs(y_j_phi[1]) ** 2)
             asd_phase_phonon[i] = abs(y_ph[1])
+            asd_phase_phonon_absorber_kid[i] = abs(y_ph_ak[1])
             asd_phase_tls[i] = abs(y_tls[1])
             asd_phase_electronic[i] = np.sqrt(abs(y_e_a[1]) ** 2 + abs(y_e_phi[1]) ** 2)
             phase_resp[i] = self.phase_responsivity_mag_rad_per_W_at_hz(float(f_hz))
 
-        asd_phase_total = np.sqrt(asd_phase_johnson**2 + asd_phase_phonon**2 + asd_phase_tls**2 + asd_phase_electronic**2)
+        asd_phase_total = np.sqrt(
+            asd_phase_johnson**2
+            + asd_phase_phonon**2
+            + asd_phase_phonon_absorber_kid**2
+            + asd_phase_tls**2
+            + asd_phase_electronic**2
+        )
         nep_phase_total = np.where(phase_resp > 0.0, asd_phase_total / phase_resp, np.nan)
         return freqs_hz, nep_phase_total
 
@@ -542,16 +581,28 @@ class Sensor:
         """TLS vector scale from TLS/Johnson fractional-frequency-noise ratio."""
         return self.m_tls_from_ratio(self.sf_over_f0sq_tls_model, self.sf_over_f0sq_johnson_full)
 
-    def n_phonon(self) -> Tuple[complex, complex, complex]:
-        return (0.0 + 0.0j, 0.0 + 0.0j, self.phonon_power_asd_device_W_per_rtHz + 0.0j)
+    def n_phonon(self) -> Tuple[complex, complex, complex, complex]:
+        """Bath-link phonon TFN source on KID island."""
+        return (0.0 + 0.0j, 0.0 + 0.0j, self.phonon_power_asd_device_W_per_rtHz + 0.0j, 0.0 + 0.0j)
 
-    def n_johnson_A(self) -> Tuple[complex, complex, complex]:
-        return (self.nj_scale + 0.0j, 0.0 + 0.0j, -self.nj_thermal_scale + 0.0j)
+    @cached_property
+    def phonon_power_asd_absorber_kid_W_per_rtHz(self) -> float:
+        """Absorber<->KID link TFN source scale."""
+        t_link = 0.5 * (self.T0_K + self.Tb_K)
+        return sqrt(4.0 * K_B * (t_link**2) * self.G_absorber_W_per_K)
 
-    def n_johnson_phi(self) -> Tuple[complex, complex, complex]:
-        return (0.0 + 0.0j, 1j * self.nj_scale, 0.0 + 0.0j)
+    def n_phonon_absorber_kid(self) -> Tuple[complex, complex, complex, complex]:
+        """Internal absorber<->KID TFN source (equal/opposite power exchange)."""
+        p = self.phonon_power_asd_absorber_kid_W_per_rtHz + 0.0j
+        return (0.0 + 0.0j, 0.0 + 0.0j, p, -p)
 
-    def _propagate_noise_vector(self, n_vec: Tuple[complex, complex, complex], f_hz: float) -> np.ndarray:
+    def n_johnson_A(self) -> Tuple[complex, complex, complex, complex]:
+        return (self.nj_scale + 0.0j, 0.0 + 0.0j, -self.nj_thermal_scale + 0.0j, 0.0 + 0.0j)
+
+    def n_johnson_phi(self) -> Tuple[complex, complex, complex, complex]:
+        return (0.0 + 0.0j, 1j * self.nj_scale, 0.0 + 0.0j, 0.0 + 0.0j)
+
+    def _propagate_noise_vector(self, n_vec: Tuple[complex, complex, complex, complex], f_hz: float) -> np.ndarray:
         """Propagate one source vector through Y = M^{-1} N."""
         m = self.m_matrix_array(f_hz)
         n = np.array(n_vec, dtype=complex)
@@ -570,6 +621,10 @@ class Sensor:
         return self._propagate_noise_vector(self.n_phonon(), self.f_demod_Hz)
 
     @cached_property
+    def y_phonon_absorber_kid(self) -> np.ndarray:
+        return self._propagate_noise_vector(self.n_phonon_absorber_kid(), self.f_demod_Hz)
+
+    @cached_property
     def y_tls_phi(self) -> np.ndarray:
         """TLS-driven output vector from phase-like TLS source at f_demod."""
         return self._propagate_noise_vector(self.n_tls_phi(self.m_tls), self.f_demod_Hz)
@@ -585,9 +640,9 @@ class Sensor:
         return self._propagate_noise_vector(self.n_electronic_phi(), self.f_demod_Hz)
 
     def phase_responsivity_complex_rad_per_W_at_hz(self, f_hz: float) -> complex:
-        """Complex phase responsivity to power source: (M^-1)_{phi,power}."""
+        """Complex phase responsivity to absorber power source: (M^-1)_{phi,absorber-power}."""
         m = self.m_matrix_array(f_hz)
-        e_power = np.array((0.0 + 0.0j, 0.0 + 0.0j, 1.0 + 0.0j), dtype=complex)
+        e_power = np.array((0.0 + 0.0j, 0.0 + 0.0j, 0.0 + 0.0j, 1.0 + 0.0j), dtype=complex)
         y_unit_power = np.linalg.solve(m, e_power)
         return complex(y_unit_power[1])
 
@@ -676,11 +731,12 @@ class Sensor:
 
     @cached_property
     def sphi_total_per_hz(self) -> float:
-        """Total phase-noise PSD from Johnson, TLS, phonon, and electronic sources."""
+        """Total phase-noise PSD from Johnson, TLS, phonon, internal-link phonon, and electronic sources."""
         return (
             self.sphi_johnson_full_per_hz
             + self.sphi_tls_per_hz
             + (self.asd_phi_phonon_full_per_rtHz**2)
+            + (self.asd_phi_phonon_absorber_kid_full_per_rtHz**2)
             + self.sphi_electronic_per_hz
         )
 
@@ -713,7 +769,8 @@ class Sensor:
     def nep_phi_phonon_0hz_W_per_rtHz(self) -> float:
         """Phase-direction phonon NEP evaluated at 0 Hz."""
         y_ph = self._propagate_noise_vector(self.n_phonon(), 0.0)
-        asd_phi_ph = float(abs(y_ph[1]))
+        y_ph_ak = self._propagate_noise_vector(self.n_phonon_absorber_kid(), 0.0)
+        asd_phi_ph = float(sqrt(abs(y_ph[1]) ** 2 + abs(y_ph_ak[1]) ** 2))
         resp0 = self.phase_responsivity_mag_rad_per_W_at_hz(0.0)
         if resp0 == 0.0:
             return float("nan")
@@ -725,11 +782,12 @@ class Sensor:
         y_j_a = self._propagate_noise_vector(self.n_johnson_A(), 0.0)
         y_j_p = self._propagate_noise_vector(self.n_johnson_phi(), 0.0)
         y_ph = self._propagate_noise_vector(self.n_phonon(), 0.0)
+        y_ph_ak = self._propagate_noise_vector(self.n_phonon_absorber_kid(), 0.0)
         y_tls = self._propagate_noise_vector(self.n_tls_phi(self.m_tls), 0.0)
         y_e_a = self._propagate_noise_vector(self.n_electronic_A(), 0.0)
         y_e_p = self._propagate_noise_vector(self.n_electronic_phi(), 0.0)
         asd_j = sqrt(abs(y_j_a[1]) ** 2 + abs(y_j_p[1]) ** 2)
-        asd_ph = abs(y_ph[1])
+        asd_ph = sqrt(abs(y_ph[1]) ** 2 + abs(y_ph_ak[1]) ** 2)
         asd_tls = abs(y_tls[1])
         asd_e = sqrt(abs(y_e_a[1]) ** 2 + abs(y_e_p[1]) ** 2)
         asd_total = sqrt(asd_j**2 + asd_ph**2 + asd_tls**2 + asd_e**2)
@@ -758,9 +816,15 @@ class Sensor:
         return -(self.alpha_phi * self.f0_Hz) / (2.0 * self.Qi * self.T0_K)
 
     @cached_property
+    def kid_resonator_widths_per_mK(self) -> float:
+        """Signed resonator-width shift per mK from dfr/dT and linewidth fr/Qr."""
+        # Widths/K = (dfr/dT) / (fr/Qr) ~= (dfr/dT) * (Qr/f0), then divide by 1e3 for mK.
+        return (self.dfr_dT_Hz_per_K * (self.Qr / self.f0_Hz)) / 1.0e3
+
+    @cached_property
     def dT_dE_K_per_J(self) -> float:
-        """Island temperature rise per absorbed energy."""
-        return 1.0 / self.C_J_per_K
+        """Absorber-island temperature rise per absorbed energy."""
+        return 1.0 / self.C_abs_J_per_K
 
     @cached_property
     def dphi_dE_rad_per_J(self) -> float:
@@ -779,13 +843,13 @@ class Sensor:
 
     @cached_property
     def phonon_temp_asd_device_K_per_rtHz(self) -> float:
-        """Low-frequency island temperature ASD from phonon power ASD and G."""
+        """Low-frequency KID-island temperature ASD from bath-link phonon ASD and G."""
         return self.phonon_power_asd_device_W_per_rtHz / self.G_W_per_K
 
     @cached_property
     def phonon_energy_asd_device_J_per_rtHz(self) -> float:
-        """Equivalent low-frequency energy ASD from temperature ASD and C."""
-        return self.C_J_per_K * self.phonon_temp_asd_device_K_per_rtHz
+        """Equivalent low-frequency energy ASD from temperature ASD and total island C."""
+        return self.C_total_J_per_K * self.phonon_temp_asd_device_K_per_rtHz
 
     @cached_property
     def asd_phi_phonon_simple_per_rtHz(self) -> float:
@@ -794,8 +858,8 @@ class Sensor:
 
     @cached_property
     def thermal_energy_fluct_rms_J(self) -> float:
-        """Simple island thermal-energy fluctuation scale: sqrt(k_B T0^2 C)."""
-        return sqrt(K_B * (self.T0_K**2) * self.C_J_per_K)
+        """Simple thermal-energy fluctuation scale using total island heat capacity."""
+        return sqrt(K_B * (self.T0_K**2) * self.C_total_J_per_K)
 
     @cached_property
     def thermal_energy_fluct_rms_eV(self) -> float:
@@ -902,22 +966,22 @@ class Sensor:
             return float("nan")
         return self.asd_v_usb_tls_1hz_V_per_rtHz / denom
 
-    def n_tls_phi(self, m_tls: float) -> Tuple[complex, complex, complex]:
-        _, n2, _ = self.n_johnson_phi()
-        return (0.0 + 0.0j, m_tls * n2, 0.0 + 0.0j)
+    def n_tls_phi(self, m_tls: float) -> Tuple[complex, complex, complex, complex]:
+        _, n2, _, _ = self.n_johnson_phi()
+        return (0.0 + 0.0j, m_tls * n2, 0.0 + 0.0j, 0.0 + 0.0j)
 
-    def n_electronic_A(self) -> Tuple[complex, complex, complex]:
-        a1, a2, a3 = self.n_johnson_A()
+    def n_electronic_A(self) -> Tuple[complex, complex, complex, complex]:
+        a1, a2, a3, a4 = self.n_johnson_A()
         me = self.me_electronic
-        return (me * a1, me * a2, me * a3)
+        return (me * a1, me * a2, me * a3, me * a4)
 
-    def n_electronic_phi(self) -> Tuple[complex, complex, complex]:
-        p1, p2, p3 = self.n_johnson_phi()
+    def n_electronic_phi(self) -> Tuple[complex, complex, complex, complex]:
+        p1, p2, p3, p4 = self.n_johnson_phi()
         me = self.me_electronic
-        return (me * p1, me * p2, me * p3)
+        return (me * p1, me * p2, me * p3, me * p4)
 
-    def m_matrix(self, f_hz: float = 1.0) -> Tuple[Tuple[complex, complex, complex], Tuple[complex, complex, complex], Tuple[complex, complex, complex]]:
-        """Compute 3x3 complex M(omega) using Eq. (13)-style normalized form.
+    def m_matrix(self, f_hz: float = 1.0) -> Tuple[Tuple[complex, complex, complex, complex], Tuple[complex, complex, complex, complex], Tuple[complex, complex, complex, complex], Tuple[complex, complex, complex, complex]]:
+        """Compute 4x4 complex M(omega) with decoupled KID and absorber thermal islands.
 
         Notes:
         - Q is identified with loaded resonator Qr.
@@ -929,8 +993,10 @@ class Sensor:
         q = self.Qr
         qi = self.Qi
         x = self.x
-        c = self.C_J_per_K
+        c_kid = self.C_kid_J_per_K
+        c_abs = self.C_abs_J_per_K
         g = self.G_W_per_K
+        g_ak = self.G_absorber_W_per_K
 
         m11 = (2.0j * omega * qi / w0) + (qi / q) + self.beta_A + (4.0 * qi * q * x * x)
         m12 = -(4.0j * omega * qi * q * x / w0)
@@ -940,15 +1006,23 @@ class Sensor:
         m22 = (2.0j * omega * qi / w0) + (qi / q) + (4.0 * qi * q * x * x) + (2.0 * q * x * self.beta_phi)
         m23 = -(2.0 * self.alpha_phi / self.T0_K)
 
-        # Eq. (13): third row is in power-balance form (no /C factor here).
+        # KID thermal row: power-balance with bath link and absorber coupling.
         m31 = -((1.0 + self.beta_A / 2.0) * self.P0_W)
         m32 = +(q * x * (self.beta_A + 2.0) * self.P0_W)
-        m33 = (1.0j * omega * c) + g - (self.P0_W * self.alpha_A / self.T0_K)
+        m33 = (1.0j * omega * c_kid) + g + g_ak - (self.P0_W * self.alpha_A / self.T0_K)
+        m34 = -g_ak
+
+        # Absorber thermal row: coupled only to KID island in this model.
+        m41 = 0.0 + 0.0j
+        m42 = 0.0 + 0.0j
+        m43 = -g_ak
+        m44 = (1.0j * omega * c_abs) + g_ak
 
         return (
-            (m11, m12, m13),
-            (m21, m22, m23),
-            (m31, m32, m33),
+            (m11, m12, m13, 0.0 + 0.0j),
+            (m21, m22, m23, 0.0 + 0.0j),
+            (m31, m32, m33, m34),
+            (m41, m42, m43, m44),
         )
 
     def m_matrix_array(self, f_hz: float = 1.0) -> np.ndarray:
@@ -1008,15 +1082,20 @@ class Sensor:
         if not self.mt_stable:
             return float("nan")
         slowest = float(np.min(np.abs(self.mt_eigenvalues)))
-        gc_freq = self.G_W_per_K / self.C_J_per_K
+        gc_freq = self.G_W_per_K / self.C_kid_J_per_K
         if slowest == 0.0:
             return float("nan")
         return gc_freq / slowest
 
     @cached_property
     def asd_phi_phonon_full_per_rtHz(self) -> float:
-        """Full matrix phonon phase ASD at f_demod."""
+        """Full matrix bath-link phonon phase ASD at f_demod."""
         return float(abs(self.y_phonon[1]))
+
+    @cached_property
+    def asd_phi_phonon_absorber_kid_full_per_rtHz(self) -> float:
+        """Full matrix absorber<->KID-link phonon phase ASD at f_demod."""
+        return float(abs(self.y_phonon_absorber_kid[1]))
 
     @cached_property
     def asd_phi_tls_100hz_model_per_rtHz(self) -> float:
@@ -1187,19 +1266,27 @@ class Sensor:
             "leg_thickness_m": self.leg_thickness_m,
             "leg_width_m": self.leg_width_m,
             "C_J_per_K": self.C_J_per_K,
+            "C_abs_J_per_K": self.C_abs_J_per_K,
+            "C_kid_J_per_K": self.C_kid_J_per_K,
+            "C_total_J_per_K": self.C_total_J_per_K,
             "C_eV_per_mK": self.C_eV_per_mK,
+            "C_kid_eV_per_mK": self.C_kid_eV_per_mK,
             "C_ho_eV_per_mK": self.C_ho_eV_per_mK,
             "G_W_per_K": self.G_W_per_K,
+            "g_absorber_to_bath_ratio": self.g_absorber_to_bath_ratio,
+            "G_absorber_W_per_K": self.G_absorber_W_per_K,
             "deltaT_abs_over_bath_setpoint_K": self.deltaT_abs_over_bath_setpoint_K,
             "deltaT_abs_over_bath_K": self.deltaT_abs_over_bath_K,
             "tbath_from_link_K": self.tbath_from_link_K,
             "deltaT_event_full_absorption_K": self.deltaT_event_full_absorption_K,
             "dfr_dT_Hz_per_K": self.dfr_dT_Hz_per_K,
+            "kid_resonator_widths_per_mK": self.kid_resonator_widths_per_mK,
             "dT_dE_K_per_J": self.dT_dE_K_per_J,
             "dphi_dE_rad_per_J": self.dphi_dE_rad_per_J,
             "deltafr_event_Hz": self.deltafr_event_Hz,
             "deltaphi_event_rad": self.deltaphi_event_rad,
             "phonon_power_asd_device_W_per_rtHz": self.phonon_power_asd_device_W_per_rtHz,
+            "phonon_power_asd_absorber_kid_W_per_rtHz": self.phonon_power_asd_absorber_kid_W_per_rtHz,
             "phonon_temp_asd_device_K_per_rtHz": self.phonon_temp_asd_device_K_per_rtHz,
             "phonon_energy_asd_device_J_per_rtHz": self.phonon_energy_asd_device_J_per_rtHz,
             "asd_phi_phonon_simple_per_rtHz": self.asd_phi_phonon_simple_per_rtHz,
@@ -1253,6 +1340,7 @@ class Sensor:
             "asd_phi_total_per_rtHz": self.asd_phi_total_per_rtHz,
             "asd_phi_tls_100hz_model_per_rtHz": self.asd_phi_tls_100hz_model_per_rtHz,
             "asd_phi_phonon_full_per_rtHz": self.asd_phi_phonon_full_per_rtHz,
+            "asd_phi_phonon_absorber_kid_full_per_rtHz": self.asd_phi_phonon_absorber_kid_full_per_rtHz,
             "phase_responsivity_rad_per_W": self.phase_responsivity_rad_per_W,
             "nep_phi_johnson_W_per_rtHz": self.nep_phi_johnson_W_per_rtHz,
             "nep_phi_tls_W_per_rtHz": self.nep_phi_tls_W_per_rtHz,
@@ -1300,6 +1388,8 @@ class Sensor:
             "mt_eig2_imag_per_s": float(np.imag(self.mt_eigenvalues_sorted[1])),
             "mt_eig3_real_per_s": float(np.real(self.mt_eigenvalues_sorted[2])),
             "mt_eig3_imag_per_s": float(np.imag(self.mt_eigenvalues_sorted[2])),
+            "mt_eig4_real_per_s": float(np.real(self.mt_eigenvalues_sorted[3])),
+            "mt_eig4_imag_per_s": float(np.imag(self.mt_eigenvalues_sorted[3])),
             "mt_max_real_part_per_s": self.mt_max_real_part,
             "mt_stable": float(self.mt_stable),
             "mt_pulse_shortening_ratio": self.mt_pulse_shortening_ratio,

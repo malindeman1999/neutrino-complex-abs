@@ -22,7 +22,7 @@ from html.parser import HTMLParser
 from typing import Dict, List, Set, Tuple
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parent
 WIKI_DIR = ROOT / "wiki"
 DOT_OUT = WIKI_DIR / "wiki-links.dot"
 SVG_OUT = WIKI_DIR / "wiki-links.svg"
@@ -97,6 +97,7 @@ def build_graph(excluded: Set[str]) -> Tuple[Set[str], Set[Tuple[str, str]]]:
 
 
 def write_dot(nodes: Set[str], edges: Set[Tuple[str, str]], dot_path: Path) -> None:
+    dot_path.parent.mkdir(parents=True, exist_ok=True)
     lines = [
         "digraph wiki {",
         "  rankdir=LR;",

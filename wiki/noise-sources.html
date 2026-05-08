@@ -39,7 +39,7 @@
       <p>Each page below gives (1) the physical noise expression, (2) mapping to source vector components, and (3) the normalized vector used in the resonator-bolometer model.</p>
       <p>All sources are propagated using \\(Y=M^{-1}N\\), then converted to phase-direction NEP using Eq. (20):</p>
       <p>\[
-      \mathrm{NEP}_{\phi}(\omega)=\left|\frac{[Y_{\mathrm{RMS}}(\omega)]_{\phi}}{(M^{-1})_{\phi,\,P}}\right|.
+      \mathrm{NEP}_{\phi}(\omega)=\left|\frac{[Y_{\mathrm{RMS}}(\omega)]_{\phi}}{(M^{-1})_{\phi,\,P_{ABS}}}\right|.
       \]</p>
       <p>For matrix definition and implementation details, see <a href="m-matrix.html">M Matrix</a>.</p>
     </section>
@@ -48,7 +48,8 @@
       <h2>Noise Catalog</h2>
       <table>
         <tr><th>Noise Source</th><th>Primary Expression</th><th>Vector Page</th></tr>
-        <tr><td>Phonon Thermal-Fluctuation Noise</td><td>\(\sqrt{4k_B T_b^2 G}\)</td><td><a href="noise-phonon.html">Phonon Noise Vector</a></td></tr>
+        <tr><td>Bath-Link Phonon Thermal-Fluctuation Noise</td><td>\(\sqrt{4k_B T_b^2 G}\)</td><td><a href="noise-phonon.html">Phonon Noise Vector</a></td></tr>
+        <tr><td>Absorber-KID Link Phonon Noise</td><td>\(\sqrt{4k_B T^2 G_{ABS}}\)</td><td>Internal vector \([0,0,+\delta P,-\delta P]^T\)</td></tr>
         <tr><td>Johnson Noise (Resistor in KIB)</td><td>\(\sqrt{4k_B T_0 R_0}\)</td><td><a href="noise-johnson.html">Johnson Noise Vectors</a></td></tr>
         <tr><td>Excess Electronic / QP-Generation Noise</td><td>\(N_g=M_eN_J\), \(M_e\sim\sqrt{E_{qp}/k_BT_0}\)</td><td><a href="noise-electronic.html">Electronic Noise Vector</a></td></tr>
         <tr><td>TLS Frequency Noise</td><td>\(N_{TLS}=M_{TLS}(f)N_{J,\phi}\)</td><td><a href="noise-tls.html">TLS Noise Vector</a></td></tr>
@@ -65,7 +66,7 @@
         <li><a href="theory.html">Theory</a>: full Eq. (4), Eq. (10)-(20) model and workflow.</li>
         <li><a href="signal-processing.html">Signal Processing</a>: optimal filtering with modeled \\(\mathbf{S}_{IQ}(\omega)\\).</li>
         <li><a href="noise-tls.html">TLS + Johnson</a>: geometry and design guidance tied to these sources.</li>
-        <li><a href="../python/sensor.py"><code>python/sensor.py</code></a>: <code>n_phonon()</code>, <code>n_johnson_A()</code>, <code>n_johnson_phi()</code>, <code>n_electronic_A()</code>, <code>n_electronic_phi()</code>, <code>n_tls_phi()</code>, <code>phase_responsivity_mag_rad_per_W_at_hz()</code>, <code>nep_from_phase_asd_W_per_rtHz()</code>.</li>
+        <li><a href="../python/sensor.py"><code>python/sensor.py</code></a>: <code>n_phonon()</code>, <code>n_phonon_absorber_kid()</code>, <code>n_johnson_A()</code>, <code>n_johnson_phi()</code>, <code>n_electronic_A()</code>, <code>n_electronic_phi()</code>, <code>n_tls_phi()</code>, <code>phase_responsivity_mag_rad_per_W_at_hz()</code>, <code>nep_from_phase_asd_W_per_rtHz()</code>.</li>
         <li>Per-source NEP outputs in code: <a href="../python/sensor.py"><code>nep_phi_johnson_W_per_rtHz</code></a>, <a href="../python/sensor.py"><code>nep_phi_phonon_W_per_rtHz</code></a>, <a href="../python/sensor.py"><code>nep_phi_tls_W_per_rtHz</code></a>, <a href="../python/sensor.py"><code>nep_phi_electronic_W_per_rtHz</code></a>, <a href="../python/sensor.py"><code>nep_phi_total_W_per_rtHz</code></a>.</li>
         <li><a href="python-estimates.html">Python-Derived Estimates</a>: code-generated nominal values used in this wiki.</li>
       </ul>
@@ -73,3 +74,4 @@
   </main>
 </body>
 </html>
+

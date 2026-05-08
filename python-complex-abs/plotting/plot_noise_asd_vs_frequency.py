@@ -6,6 +6,7 @@ from dataclasses import asdict
 from math import pi
 from pathlib import Path
 import pickle
+import sys
 import tkinter as tk
 from tkinter import filedialog, ttk
 
@@ -14,10 +15,16 @@ import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
 
+# Allow running this script via absolute path from any working directory.
+SCRIPT_DIR = Path(__file__).resolve().parent
+PARENT_DIR = SCRIPT_DIR.parent
+if str(PARENT_DIR) not in sys.path:
+    sys.path.insert(0, str(PARENT_DIR))
+
 from sensor import Sensor, Version1SensorInputs
 
 
-PLOT_DIR = Path(__file__).resolve().parent
+PLOT_DIR = SCRIPT_DIR
 SAVES_DIR = PLOT_DIR / "saves"
 SETTINGS_FILE = SAVES_DIR / "last_plot_settings.pkl"
 STARTUP_STATE_FILE = SAVES_DIR / "last_plot_settings_state.pkl"
@@ -38,7 +45,9 @@ INPUT_SECTIONS = [
         "Absorber",
         [
             "heat_capacity_eV_per_mK",
+            "cv_membrane_J_per_m3K",
             "ho_in_au_atomic_fraction",
+            "g_absorber_to_bath_ratio",
         ],
     ),
     (
@@ -69,7 +78,9 @@ LABELS = {
     "detuning_widths": "Detuning [widths]",
     "nep_sufficiency_percent": "NEP suff [%]",
     "heat_capacity_eV_per_mK": "C [eV/mK]",
+    "cv_membrane_J_per_m3K": "c_v,mem [J/m^3/K]",
     "ho_in_au_atomic_fraction": "Ho/Au frac",
+    "g_absorber_to_bath_ratio": "G_abs/G_bath",
     "tls_phi_asd_100hz_per_rtHz": "TLS ASD @100Hz",
     "tls_beta": "TLS beta",
     "Qi": "Qi",
@@ -315,6 +326,7 @@ class NoiseGui:
         rate_hz = float(s.count_rate_Hz)
         pileup_pct = 100.0 * float(s.pileup_probability_max)
         shorten = float(s.mt_pulse_shortening_ratio)
+        widths_per_mk = float(s.kid_resonator_widths_per_mK)
         self.summary_var.set(
             "Event dT (island): "
             f"{delta_t_mk:.3g} mK\n"
@@ -322,6 +334,8 @@ class NoiseGui:
             f"{rate_hz:.3g} Hz\n"
             "Pileup probability: "
             f"{pileup_pct:.3g}%\n"
+            "KID shift: "
+            f"{widths_per_mk:.3g} widths/mK\n"
             "Pulse shortening factor: "
             f"{shorten:.3g}"
         )
@@ -355,10 +369,12 @@ class NoiseGui:
 
         asd_phase_johnson = np.zeros_like(freqs_hz)
         asd_phase_phonon = np.zeros_like(freqs_hz)
+        asd_phase_phonon_absorber_kid = np.zeros_like(freqs_hz)
         asd_phase_tls = np.zeros_like(freqs_hz)
         asd_phase_electronic = np.zeros_like(freqs_hz)
         asd_amp_johnson = np.zeros_like(freqs_hz)
         asd_amp_phonon = np.zeros_like(freqs_hz)
+        asd_amp_phonon_absorber_kid = np.zeros_like(freqs_hz)
         asd_amp_tls = np.zeros_like(freqs_hz)
         asd_amp_electronic = np.zeros_like(freqs_hz)
         phase_resp = np.zeros_like(freqs_hz)
@@ -368,6 +384,7 @@ class NoiseGui:
             y_j_a = s._propagate_noise_vector(s.n_johnson_A(), f_hz)
             y_j_phi = s._propagate_noise_vector(s.n_johnson_phi(), f_hz)
             y_ph = s._propagate_noise_vector(s.n_phonon(), f_hz)
+            y_ph_ak = s._propagate_noise_vector(s.n_phonon_absorber_kid(), f_hz)
             m_tls_f = s.m_tls_from_ratio(s.sf_over_f0sq_tls_at_hz(float(f_hz)), s.sf_over_f0sq_johnson_full)
             y_tls = s._propagate_noise_vector(s.n_tls_phi(m_tls_f), f_hz)
             y_e_a = s._propagate_noise_vector(s.n_electronic_A(), f_hz)
@@ -375,27 +392,46 @@ class NoiseGui:
 
             asd_phase_johnson[i] = np.sqrt(abs(y_j_a[1]) ** 2 + abs(y_j_phi[1]) ** 2)
             asd_phase_phonon[i] = abs(y_ph[1])
+            asd_phase_phonon_absorber_kid[i] = abs(y_ph_ak[1])
             asd_phase_tls[i] = abs(y_tls[1])
             asd_phase_electronic[i] = np.sqrt(abs(y_e_a[1]) ** 2 + abs(y_e_phi[1]) ** 2)
             asd_amp_johnson[i] = np.sqrt(abs(y_j_a[0]) ** 2 + abs(y_j_phi[0]) ** 2)
             asd_amp_phonon[i] = abs(y_ph[0])
+            asd_amp_phonon_absorber_kid[i] = abs(y_ph_ak[0])
             asd_amp_tls[i] = abs(y_tls[0])
             asd_amp_electronic[i] = np.sqrt(abs(y_e_a[0]) ** 2 + abs(y_e_phi[0]) ** 2)
             phase_resp[i] = s.phase_responsivity_mag_rad_per_W_at_hz(float(f_hz))
-            y_unit_power = np.linalg.solve(s.m_matrix_array(float(f_hz)), np.array((0.0 + 0.0j, 0.0 + 0.0j, 1.0 + 0.0j), dtype=complex))
+            y_unit_power = np.linalg.solve(
+                s.m_matrix_array(float(f_hz)),
+                np.array((0.0 + 0.0j, 0.0 + 0.0j, 0.0 + 0.0j, 1.0 + 0.0j), dtype=complex),
+            )
             amp_resp[i] = abs(y_unit_power[0])
 
-        asd_phase_total = np.sqrt(asd_phase_johnson**2 + asd_phase_phonon**2 + asd_phase_tls**2 + asd_phase_electronic**2)
-        asd_amp_total = np.sqrt(asd_amp_johnson**2 + asd_amp_phonon**2 + asd_amp_tls**2 + asd_amp_electronic**2)
+        asd_phase_total = np.sqrt(
+            asd_phase_johnson**2
+            + asd_phase_phonon**2
+            + asd_phase_phonon_absorber_kid**2
+            + asd_phase_tls**2
+            + asd_phase_electronic**2
+        )
+        asd_amp_total = np.sqrt(
+            asd_amp_johnson**2
+            + asd_amp_phonon**2
+            + asd_amp_phonon_absorber_kid**2
+            + asd_amp_tls**2
+            + asd_amp_electronic**2
+        )
         asd_tls_direct = s.tls_phi_asd_100hz_per_rtHz * ((freqs_hz / 100.0) ** (-s.tls_beta / 2.0))
         asd_johnson_simple = abs(s.f0_Hz * s.dphi_df_detuning_per_hz) * np.sqrt(s.sf_over_f0sq_johnson_simple)
         nep_phase_johnson = np.where(phase_resp > 0.0, asd_phase_johnson / phase_resp, np.nan)
         nep_phase_phonon = np.where(phase_resp > 0.0, asd_phase_phonon / phase_resp, np.nan)
+        nep_phase_phonon_absorber_kid = np.where(phase_resp > 0.0, asd_phase_phonon_absorber_kid / phase_resp, np.nan)
         nep_phase_tls = np.where(phase_resp > 0.0, asd_phase_tls / phase_resp, np.nan)
         nep_phase_electronic = np.where(phase_resp > 0.0, asd_phase_electronic / phase_resp, np.nan)
         nep_phase_total = np.where(phase_resp > 0.0, asd_phase_total / phase_resp, np.nan)
         nep_amp_johnson = np.where(amp_resp > 0.0, asd_amp_johnson / amp_resp, np.nan)
         nep_amp_phonon = np.where(amp_resp > 0.0, asd_amp_phonon / amp_resp, np.nan)
+        nep_amp_phonon_absorber_kid = np.where(amp_resp > 0.0, asd_amp_phonon_absorber_kid / amp_resp, np.nan)
         nep_amp_tls = np.where(amp_resp > 0.0, asd_amp_tls / amp_resp, np.nan)
         nep_amp_electronic = np.where(amp_resp > 0.0, asd_amp_electronic / amp_resp, np.nan)
         nep_amp_total = np.where(amp_resp > 0.0, asd_amp_total / amp_resp, np.nan)
@@ -415,20 +451,63 @@ class NoiseGui:
         valid_markers.sort(key=lambda x: x[0])
 
         asd_phase_ylim = _positive_limits(
-            [asd_phase_johnson, asd_phase_phonon, asd_phase_tls, asd_phase_electronic, asd_phase_total, asd_tls_direct, np.array([asd_johnson_simple])]
+            [
+                asd_phase_johnson,
+                asd_phase_phonon,
+                asd_phase_phonon_absorber_kid,
+                asd_phase_tls,
+                asd_phase_electronic,
+                asd_phase_total,
+                asd_tls_direct,
+                np.array([asd_johnson_simple]),
+            ]
         )
-        asd_amp_ylim = _positive_limits([asd_amp_johnson, asd_amp_phonon, asd_amp_tls, asd_amp_electronic, asd_amp_total])
-        nep_phase_ylim = _positive_limits([nep_phase_johnson, nep_phase_phonon, nep_phase_tls, nep_phase_electronic, nep_phase_total])
-        nep_amp_ylim = _positive_limits([nep_amp_johnson, nep_amp_phonon, nep_amp_tls, nep_amp_electronic, nep_amp_total])
+        asd_amp_ylim = _positive_limits(
+            [asd_amp_johnson, asd_amp_phonon, asd_amp_phonon_absorber_kid, asd_amp_tls, asd_amp_electronic, asd_amp_total]
+        )
+        nep_phase_ylim = _positive_limits(
+            [nep_phase_johnson, nep_phase_phonon, nep_phase_phonon_absorber_kid, nep_phase_tls, nep_phase_electronic, nep_phase_total]
+        )
+        nep_amp_ylim = _positive_limits(
+            [nep_amp_johnson, nep_amp_phonon, nep_amp_phonon_absorber_kid, nep_amp_tls, nep_amp_electronic, nep_amp_total]
+        )
 
         return {
             "sensor": s,
             "freqs": freqs_hz,
-            "asd_phase": (asd_phase_johnson, asd_phase_phonon, asd_phase_tls, asd_phase_electronic, asd_phase_total),
-            "asd_amp": (asd_amp_johnson, asd_amp_phonon, asd_amp_tls, asd_amp_electronic, asd_amp_total),
+            "asd_phase": (
+                asd_phase_johnson,
+                asd_phase_phonon,
+                asd_phase_phonon_absorber_kid,
+                asd_phase_tls,
+                asd_phase_electronic,
+                asd_phase_total,
+            ),
+            "asd_amp": (
+                asd_amp_johnson,
+                asd_amp_phonon,
+                asd_amp_phonon_absorber_kid,
+                asd_amp_tls,
+                asd_amp_electronic,
+                asd_amp_total,
+            ),
             "asd_tls_direct": asd_tls_direct,
-            "nep_phase": (nep_phase_johnson, nep_phase_phonon, nep_phase_tls, nep_phase_electronic, nep_phase_total),
-            "nep_amp": (nep_amp_johnson, nep_amp_phonon, nep_amp_tls, nep_amp_electronic, nep_amp_total),
+            "nep_phase": (
+                nep_phase_johnson,
+                nep_phase_phonon,
+                nep_phase_phonon_absorber_kid,
+                nep_phase_tls,
+                nep_phase_electronic,
+                nep_phase_total,
+            ),
+            "nep_amp": (
+                nep_amp_johnson,
+                nep_amp_phonon,
+                nep_amp_phonon_absorber_kid,
+                nep_amp_tls,
+                nep_amp_electronic,
+                nep_amp_total,
+            ),
             "res_threshold_phase": _resolution_threshold_markers(freqs_hz, nep_phase_total),
             "res_threshold_amp": _resolution_threshold_markers(freqs_hz, nep_amp_total),
             "asd_johnson_simple": asd_johnson_simple,
@@ -447,27 +526,32 @@ class NoiseGui:
         freqs = d["freqs"]
         readout = self.readout_var.get()
         is_phase = readout == "Phase"
-        asd_johnson, asd_phonon, asd_tls, asd_electronic, asd_total = d["asd_phase"] if is_phase else d["asd_amp"]
-        nep_johnson, nep_phonon, nep_tls, nep_electronic, nep_total = d["nep_phase"] if is_phase else d["nep_amp"]
+        asd_johnson, asd_phonon_bath, asd_phonon_ak, asd_tls, asd_electronic, asd_total = (
+            d["asd_phase"] if is_phase else d["asd_amp"]
+        )
+        nep_johnson, nep_phonon_bath, nep_phonon_ak, nep_tls, nep_electronic, nep_total = (
+            d["nep_phase"] if is_phase else d["nep_amp"]
+        )
 
         self.ax.clear()
         mode = self.mode_var.get()
         if mode == "NEP":
-            ysets = (nep_johnson, nep_phonon, nep_tls, nep_electronic, nep_total)
+            ysets = (nep_johnson, nep_phonon_bath, nep_phonon_ak, nep_tls, nep_electronic, nep_total)
             ylab = "NEP [W/rtHz]"
             title = f"Noise-Equivalent Power vs Frequency ({readout} readout)"
             self.ax.set_ylim(*(d["nep_phase_ylim"] if is_phase else d["nep_amp_ylim"]))
         else:
-            ysets = (asd_johnson, asd_phonon, asd_tls, asd_electronic, asd_total)
+            ysets = (asd_johnson, asd_phonon_bath, asd_phonon_ak, asd_tls, asd_electronic, asd_total)
             ylab = "Phase ASD [rad/rtHz]" if is_phase else "Amplitude ASD [1/rtHz]"
             title = f"Noise ASD vs Frequency ({readout} readout)"
             self.ax.set_ylim(*(d["asd_phase_ylim"] if is_phase else d["asd_amp_ylim"]))
 
         self.ax.loglog(freqs, ysets[0], label="Johnson", color="tab:blue")
-        self.ax.loglog(freqs, ysets[1], label="Phonon", color="tab:orange")
-        self.ax.loglog(freqs, ysets[2], label="TLS", color="tab:green")
-        self.ax.loglog(freqs, ysets[3], label="Electronic", color="tab:red")
-        self.ax.loglog(freqs, ysets[4], "k", linewidth=2.0, label="Total (quadrature)")
+        self.ax.loglog(freqs, ysets[1], label="Phonon (bath link)", color="tab:orange")
+        self.ax.loglog(freqs, ysets[2], label="Phonon (absorber-KID link)", color="tab:brown")
+        self.ax.loglog(freqs, ysets[3], label="TLS", color="tab:green")
+        self.ax.loglog(freqs, ysets[4], label="Electronic", color="tab:red")
+        self.ax.loglog(freqs, ysets[5], "k", linewidth=2.0, label="Total (quadrature)")
 
         if mode == "Noise ASD" and is_phase:
             self.ax.axhline(
@@ -488,7 +572,7 @@ class NoiseGui:
                 label="TLS (direct beta law)",
             )
         if mode == "NEP":
-            phonon_ref = np.asarray(nep_phonon, dtype=float)
+            phonon_ref = np.asarray(nep_phonon_bath, dtype=float)
             phonon_ref = phonon_ref[np.isfinite(phonon_ref) & (phonon_ref > 0.0)]
             if phonon_ref.size > 0:
                 self.ax.axhline(

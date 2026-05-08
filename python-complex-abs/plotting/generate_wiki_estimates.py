@@ -1,8 +1,8 @@
 """Generate code-derived estimates for the wiki.
 
 Outputs:
-- python/outputs/wiki_estimates.json
-- wiki/python-estimates.html
+- python-complex-abs/outputs/wiki_estimates.json
+- ../wiki/python-estimates.html
 """
 
 from __future__ import annotations
@@ -10,14 +10,22 @@ from __future__ import annotations
 from dataclasses import fields
 import json
 from pathlib import Path
+import sys
+
+# Allow running this script via absolute path from any working directory.
+SCRIPT_DIR = Path(__file__).resolve().parent
+PARENT_DIR = SCRIPT_DIR.parent
+if str(PARENT_DIR) not in sys.path:
+    sys.path.insert(0, str(PARENT_DIR))
 
 from sensor import version_1_sensor
 
 
-ROOT = Path(__file__).resolve().parents[2]
-OUT_JSON = ROOT / "python" / "outputs" / "wiki_estimates.json"
-OUT_HTML = ROOT / "wiki" / "python-estimates.html"
-OUT_DESIGN_HTML = ROOT / "wiki" / "design.html"
+ROOT = PARENT_DIR
+OUT_JSON = ROOT / "outputs" / "wiki_estimates.json"
+WIKI_ROOT = ROOT.parent / "wiki"
+OUT_HTML = WIKI_ROOT / "python-estimates.html"
+OUT_DESIGN_HTML = WIKI_ROOT / "design.html"
 
 
 def _fmt(x: float) -> str:
@@ -41,6 +49,8 @@ def _pf_html(x: float) -> str:
 
 
 def main() -> None:
+    OUT_JSON.parent.mkdir(parents=True, exist_ok=True)
+    OUT_HTML.parent.mkdir(parents=True, exist_ok=True)
     s = version_1_sensor()
     est = s.estimates()
     input_keys = [f.name for f in fields(s.inputs)]
@@ -71,6 +81,7 @@ def main() -> None:
         "cap_thickness_m": "m",
         "membrane_thickness_m": "m",
         "cv_absorber_J_per_m3K": "J/(m^3 K)",
+        "cv_membrane_J_per_m3K": "J/(m^3 K)",
         "kappa_leg_W_per_mK": "W/(m K)",
         "thermal_link_exponent_n": "1",
         "tls_phi_asd_100hz_per_rtHz": "1/Hz^(1/2)",
@@ -108,6 +119,8 @@ def main() -> None:
         "membrane_span_m": "m",
         "leg_length_m": "m",
         "C_J_per_K": "J/K",
+        "C_kid_J_per_K": "J/K",
+        "C_kid_eV_per_mK": "eV/mK",
         "C_eV_per_mK": "eV/mK",
         "C_ho_eV_per_mK": "eV/mK",
         "G_W_per_K": "W/K",
@@ -115,6 +128,7 @@ def main() -> None:
         "tbath_from_link_K": "K",
         "deltaT_event_full_absorption_K": "K",
         "dfr_dT_Hz_per_K": "Hz/K",
+        "kid_resonator_widths_per_mK": "widths/mK",
         "dT_dE_K_per_J": "K/J",
         "dphi_dE_rad_per_J": "rad/J",
         "deltafr_event_Hz": "Hz",
@@ -217,6 +231,7 @@ def main() -> None:
         "cap_thickness_m": r"\(t_{\mathrm{cap}}\)",
         "membrane_thickness_m": r"\(t_{\mathrm{mem}}\)",
         "cv_absorber_J_per_m3K": r"\(c_{V,\mathrm{abs}}\)",
+        "cv_membrane_J_per_m3K": r"\(c_{V,\mathrm{mem}}\)",
         "kappa_leg_W_per_mK": r"\(\kappa_{\mathrm{leg}}\)",
         "thermal_link_exponent_n": r"\(n_{\mathrm{link}}\)",
         "tls_phi_asd_100hz_per_rtHz": r"\(\sqrt{S_{\phi,\mathrm{TLS}}}(100\,\mathrm{Hz})\)",
@@ -255,6 +270,8 @@ def main() -> None:
         "membrane_span_m": r"\(S_{\mathrm{mem}}\)",
         "leg_length_m": r"\(L_{\mathrm{leg}}\)",
         "C_J_per_K": r"\(C\)",
+        "C_kid_J_per_K": r"\(C_{\mathrm{KID}}\)",
+        "C_kid_eV_per_mK": r"\(C_{\mathrm{KID,eV/mK}}\)",
         "C_eV_per_mK": r"\(C_{\mathrm{eV/mK}}\)",
         "C_ho_eV_per_mK": r"\(C_{\mathrm{Ho,eV/mK}}\)",
         "G_W_per_K": r"\(G\)",
@@ -262,6 +279,7 @@ def main() -> None:
         "tbath_from_link_K": r"\(T_{\mathrm{bath}}\)",
         "deltaT_event_full_absorption_K": r"\(\Delta T_{\mathrm{event}}\)",
         "dfr_dT_Hz_per_K": r"\(df_r/dT\)",
+        "kid_resonator_widths_per_mK": r"\((df_r/dT)/(f_r/Q_r)\) per mK",
         "dT_dE_K_per_J": r"\(dT/dE\)",
         "dphi_dE_rad_per_J": r"\(d\phi/dE\)",
         "deltafr_event_Hz": r"\(\Delta f_{r,\mathrm{event}}\)",
@@ -354,6 +372,9 @@ def main() -> None:
         "leg_length_m": r"\(L_{\mathrm{leg}}=\dfrac{N_{\mathrm{leg}}\kappa_{\mathrm{leg}}w_{\mathrm{leg}}t_{\mathrm{leg}}}{G}\)",
         "leg_thickness_m": r"\(t_{\mathrm{leg}}=t_{\mathrm{mem}}\)",
         "C_J_per_K": r"\(C=c_{V,\mathrm{abs}}V_{\mathrm{abs}}\)",
+        "cv_membrane_J_per_m3K": r"\(c_{V,\mathrm{mem}}(T_0)\approx aT_0+bT_0^3\;\;(\text{cubic-only: }a=0)\)",
+        "C_kid_J_per_K": r"\(C_{\mathrm{KID}}=L_{\mathrm{KID}}W_{\mathrm{KID}}t_{\mathrm{mem}}c_{V,\mathrm{mem}}\)",
+        "C_kid_eV_per_mK": r"\(C_{\mathrm{KID,eV/mK}}=\dfrac{C_{\mathrm{kid,J/K}}}{q_e\cdot 10^3}\)",
         "C_eV_per_mK": r"\(C_{\mathrm{eV/mK}}=\dfrac{C}{q_e\cdot 10^3}\)",
         "C_ho_eV_per_mK": r"\(C_{\mathrm{Ho,eV/mK}}=\dfrac{C_{\mathrm{Ho}}}{q_e\cdot 10^3}\)",
         "G_W_per_K": r"\(G=\dfrac{P_0}{\Delta T_{\mathrm{abs-bath,set}}}\)",
@@ -361,6 +382,7 @@ def main() -> None:
         "tbath_from_link_K": r"\(T_{\mathrm{bath}}=T_0-\Delta T_{\mathrm{abs-bath}}\)",
         "deltaT_event_full_absorption_K": r"\(\Delta T_{\mathrm{event}}=\dfrac{E_{\mathrm{Ho}}}{C}\)",
         "dfr_dT_Hz_per_K": r"\(\dfrac{df_r}{dT}=-\dfrac{\alpha_\phi f_r}{2Q_iT_0}\approx-\dfrac{\alpha_\phi f_0}{2Q_iT_0}\)",
+        "kid_resonator_widths_per_mK": r"\(\dfrac{1}{10^3}\dfrac{(df_r/dT)}{f_r/Q_r}\approx-\dfrac{\alpha_\phi Q_r}{2Q_iT_0\cdot10^3}\)",
         "dT_dE_K_per_J": r"\(\dfrac{dT}{dE}=\dfrac{1}{C}\)",
         "dphi_dE_rad_per_J": r"\(\dfrac{d\phi}{dE}=\dfrac{d\phi}{df}\dfrac{df_r}{dT}\dfrac{dT}{dE}\)",
         "deltafr_event_Hz": r"\(\Delta f_{r,\mathrm{event}}=\dfrac{df_r}{dT}\Delta T_{\mathrm{event}}\)",
@@ -463,6 +485,8 @@ def main() -> None:
         "leg_length_m": {"leg_count", "kappa_leg_W_per_mK", "leg_width_m", "leg_thickness_m", "G_W_per_K"},
         "leg_thickness_m": {"membrane_thickness_m"},
         "C_J_per_K": {"cv_absorber_J_per_m3K", "absorber_volume_m3"},
+        "C_kid_J_per_K": {"kid_length_m", "kid_width_m", "membrane_thickness_m", "cv_membrane_J_per_m3K"},
+        "C_kid_eV_per_mK": {"C_kid_J_per_K"},
         "C_eV_per_mK": {"C_J_per_K"},
         "C_ho_eV_per_mK": {"C_J_per_K"},
         "G_W_per_K": {"P0_W", "deltaT_abs_over_bath_setpoint_K"},
@@ -470,6 +494,7 @@ def main() -> None:
         "tbath_from_link_K": {"T0_K", "deltaT_abs_over_bath_K"},
         "deltaT_event_full_absorption_K": {"ho_decay_energy_J", "C_J_per_K"},
         "dfr_dT_Hz_per_K": {"alpha_phi", "f0_Hz", "Qi", "T0_K"},
+        "kid_resonator_widths_per_mK": {"dfr_dT_Hz_per_K", "Qr", "f0_Hz"},
         "dT_dE_K_per_J": {"C_J_per_K"},
         "dphi_dE_rad_per_J": {"dphi_df_detuning_per_hz", "dfr_dT_Hz_per_K", "dT_dE_K_per_J"},
         "deltafr_event_Hz": {"dfr_dT_Hz_per_K", "deltaT_event_full_absorption_K"},
@@ -583,6 +608,8 @@ def main() -> None:
         "leg_length_m": "physics.html#leg-geometry-formulas",
         "leg_thickness_m": "physics.html#leg-geometry-formulas",
         "C_J_per_K": "physics.html#thermal-derived-formulas",
+        "C_kid_J_per_K": "physics.html#thermal-derived-formulas",
+        "C_kid_eV_per_mK": "physics.html#thermal-derived-formulas",
         "C_eV_per_mK": "physics.html#thermal-derived-formulas",
         "C_ho_eV_per_mK": "physics.html#thermal-derived-formulas",
         "G_W_per_K": "physics.html#thermal-derived-formulas",
@@ -590,6 +617,7 @@ def main() -> None:
         "tbath_from_link_K": "physics.html#thermal-derived-formulas",
         "deltaT_event_full_absorption_K": "physics.html#thermal-derived-formulas",
         "dfr_dT_Hz_per_K": "simple-estimates.html",
+        "kid_resonator_widths_per_mK": "simple-estimates.html",
         "dT_dE_K_per_J": "simple-estimates.html",
         "dphi_dE_rad_per_J": "simple-estimates.html",
         "deltafr_event_Hz": "simple-estimates.html",
@@ -796,6 +824,7 @@ def main() -> None:
             "ho_in_au_atomic_fraction",
             "ho_decay_energy_J",
             "cv_absorber_J_per_m3K",
+            "cv_membrane_J_per_m3K",
             "kappa_leg_W_per_mK",
         ],
         "Capacitor TLS": [
@@ -855,12 +884,16 @@ def main() -> None:
         ],
         "Derived Thermal": [
             "C_J_per_K",
+            "cv_membrane_J_per_m3K",
+            "C_kid_J_per_K",
+            "C_kid_eV_per_mK",
             "C_eV_per_mK",
             "C_ho_eV_per_mK",
             "G_W_per_K",
             "deltaT_abs_over_bath_K",
             "tbath_from_link_K",
             "deltaT_event_full_absorption_K",
+            "kid_resonator_widths_per_mK",
             "ho_decay_energy_eV",
             "tau_th_s",
             "tau_target_from_rate_s",
@@ -954,15 +987,18 @@ def main() -> None:
         ],
     }
 
-    def _output_rows_for_keys(keys: list[str], outputs: dict[str, object]) -> str:
+    def _output_rows_for_keys(keys: list[str], outputs: dict[str, object], inputs: dict[str, object]) -> str:
         rows = []
         for k in keys:
-            if k not in outputs:
+            if k in outputs:
+                val = outputs[k]
+            elif k in inputs:
+                val = inputs[k]
+            else:
                 continue
             sym = symbols.get(k, "")
             if k in wiki_links:
                 sym = f'<a href="{wiki_links[k]}">{sym}</a>'
-            val = outputs[k]
             if k.endswith("_ok") or k == "mt_stable":
                 val_s = _pf_html(float(val))
             else:
@@ -978,7 +1014,7 @@ def main() -> None:
       <h3>{group_name}</h3>
       <table>
         <tr><th>Quantity</th><th>Symbol</th><th>Formula</th><th>Value</th><th>Units</th></tr>
-        {_output_rows_for_keys(keys, model_outputs)}
+        {_output_rows_for_keys(keys, model_outputs, model_inputs)}
       </table>
     </section>
     """

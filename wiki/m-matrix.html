@@ -43,7 +43,7 @@
       M(\omega)\,Y(\omega)=N(\omega),\qquad
       Y(\omega)=M^{-1}(\omega)\,N(\omega).
       \]</p>
-      <p>\(Y=[r,\phi,T]^T\) are demodulated normalized states and \(N\) is the source vector.</p>
+      <p>\(Y=[r,\phi,T_{KID},T_{ABS}]^T\) are demodulated normalized states and \(N\) is the source vector.</p>
     </section>
 
     <section class="card">
@@ -51,7 +51,7 @@
       <p>\(M(\omega)\) is the dynamic coupling operator that includes resonator response, thermal response, and electrothermal coupling.</p>
       <ul>
         <li>Diagonal terms set intrinsic response poles/scales.</li>
-        <li>Off-diagonal terms encode coupling between \(r,\phi,T\).</li>
+        <li>Off-diagonal terms encode coupling between \(r,\phi,T_{KID},T_{ABS}\).</li>
         <li>Detuning enters through model coefficients and changes phase slope/responsivity.</li>
       </ul>
       <p>Every source/noise path is computed through this same operator via \(Y=M^{-1}N\).</p>
@@ -59,29 +59,33 @@
 
     <section class="card">
       <h2>Implementation Form</h2>
-      <p>In code, \(M(\omega)\) is built directly from project parameters \((Q_r,Q_i,\alpha,\beta,P_0,C,G,T_0,f_0,\delta f)\) and evaluated at demodulated frequency \(f\).</p>
-      <p>For this project’s nominal estimates, \(f=0\) Hz in the demodulated band is used by default.</p>
+      <p>In code, \(M(\omega)\) is built directly from project parameters \((Q_r,Q_i,\alpha,\beta,P_0,C_{KID},C_{ABS},G,G_{ABS},T_0,f_0,\delta f)\) and evaluated at demodulated frequency \(f\), with \(G_{ABS}=\rho_G G\) and \(\rho_G\equiv G_{ABS}/G\).</p>
+      <p>For this projectâ€™s nominal estimates, \(f=0\) Hz in the demodulated band is used by default.</p>
       <p>Python: <a href="../python/sensor.py"><code>Sensor.m_matrix()</code></a>, <a href="../python/sensor.py"><code>Sensor.m_matrix_array()</code></a>.</p>
     </section>
 
     <section class="card">
-      <h2>Full \(M(\omega)\) Matrix Form Used in Code (Eq. 13 Structure)</h2>
+      <h2>Full \(M(\omega)\) Matrix Form Used in Code (4-State Extension)</h2>
       <p>Let \(\omega_0=2\pi f_0\), demodulated angular frequency \(\omega\), loaded \(Q\equiv Q_r\), and dimensionless detuning \(x\equiv \delta f/f_0\). The implemented normalized matrix is:</p>
       <p>\[
       M(\omega)=
       \begin{bmatrix}
       \dfrac{2i\omega Q_i}{\omega_0}+\dfrac{Q_i}{Q}+\beta_A+4Q_iQx^2 &
       -\dfrac{4i\omega Q_iQx}{\omega_0} &
-      -2Qx\beta_A+\dfrac{2\alpha_A}{T_0}\\[1.0em]
+      -2Qx\beta_A+\dfrac{2\alpha_A}{T_0} &
+      0\\[0.9em]
       \dfrac{4i\omega Q_iQx}{\omega_0}-\beta_\phi &
       \dfrac{2i\omega Q_i}{\omega_0}+\dfrac{Q_i}{Q}+4Q_iQx^2+2Qx\beta_\phi &
-      -\dfrac{2\alpha_\phi}{T_0}\\[1.0em]
+      -\dfrac{2\alpha_\phi}{T_0} &
+      0\\[0.9em]
       -\left(1+\dfrac{\beta_A}{2}\right)P_0 &
       Qx(\beta_A+2)P_0 &
-      i\omega C+G-\dfrac{P_0\alpha_A}{T_0}
+      i\omega C_{KID}+G+G_{ABS}-\dfrac{P_0\alpha_A}{T_0} &
+      -G_{ABS}\\[0.9em]
+      0 & 0 & -G_{ABS} & i\omega C_{ABS}+G_{ABS}
       \end{bmatrix}.
       \]</p>
-      <p>This is the exact matrix currently implemented in <a href="../python/sensor.py"><code>Sensor.m_matrix()</code></a>.</p>
+      <p>The resonator-electrical 2x2 and KID ETF couplings keep the Eq. (13) structure, with an added absorber row/column thermally coupled through \(G_{ABS}\). This is the exact matrix currently implemented in <a href="../python/sensor.py"><code>Sensor.m_matrix()</code></a>.</p>
     </section>
 
     <section class="card">

@@ -74,7 +74,13 @@
 
     <section class="card">
       <h2>Membrane Heat Capacity at 100 mK</h2>
-      <p>Use a SiN-like phonon heat-capacity model at low temperature:</p>
+      <p>For amorphous dielectrics (including amorphous SiN), a standard low-temperature volumetric heat-capacity form is:</p>
+      <p>\[
+      c_{V,\mathrm{mem}}(T)\approx aT+bT^3,
+      \]
+      where the linear term is the amorphous/TLS-like contribution and the cubic term is Debye-like phonons.</p>
+      <p>For first-pass TKID estimates in this wiki, we often use the cubic-dominant simplification \(c_{V,\mathrm{mem}}(T)\approx bT^3\), then evaluate at the operating-point temperature \(T_0\).</p>
+      <p>Example cubic-only parameterization:</p>
       <p>\[
       c_{mem}(T)\approx \beta T^3,\quad \beta\approx 2\times10^{-5}\,\mathrm{J/(g\,K^4)},
       \]</p>
@@ -94,6 +100,12 @@
       <p>\[
       C_{mem}(100\,\mathrm{mK})\approx 0.48\text{ to }1.92\,\mathrm{eV/mK}.
       \]</p>
+      <p>Code note: the current Python model uses a fixed input \(c_{V,\mathrm{mem}}\) at the chosen operating point (typically \(T_0\)); it does not yet re-evaluate \(c_{V,\mathrm{mem}}(T)\) dynamically versus temperature.</p>
+      <p>References:</p>
+      <ul>
+        <li>Zeller and Pohl, <em>Thermal Conductivity and Specific Heat of Noncrystalline Solids</em>, Phys. Rev. B 4, 2029 (1971): low-\(T\) amorphous-solid specific-heat phenomenology (\(T\) and \(T^3\) terms). <a href="https://journals.aps.org/prb/abstract/10.1103/PhysRevB.4.2029">https://journals.aps.org/prb/abstract/10.1103/PhysRevB.4.2029</a></li>
+        <li>Leivo and Pekola, <em>Specific heat and thermal conductivity of low-stress amorphous Si-N membranes</em>, Solid State Communications 129 (2004): SiN membrane data over 3-300 K used as material-specific context. <a href="https://www.sciencedirect.com/science/article/pii/S0038109803008391">https://www.sciencedirect.com/science/article/pii/S0038109803008391</a></li>
+      </ul>
     </section>
   </main>
 </body>
