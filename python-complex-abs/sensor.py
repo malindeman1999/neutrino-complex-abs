@@ -113,7 +113,7 @@ class Version1SensorInputs(SensorInputs):
     kinetic_inductance_fraction: float = 0.5
     kid_trace_length_m: float = 10.0e-3
     kid_trace_width_m: float = 2.0e-6
-    alpha_A: float = 0.1
+    alpha_A: float = 20.0
     alpha_phi: float = 140.0
     beta_A: float = 0.0
     beta_phi: float = 0.0

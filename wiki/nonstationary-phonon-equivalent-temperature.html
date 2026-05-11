@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nonstationary Phonon Noise Equivalent Temperature | TKID Neutrino Detector Docs</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['\\(', '\\)'], ['$', '$']] }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+</head>
+<body>
+  <header class="hero">
+    <h1>Nonstationary Phonon Noise: Equivalent Temperature</h1>
+    <p>Approximate a pulse-heated absorber with a stationary equivalent temperature for standard optimal filtering.</p>
+  </header>
+
+  <nav class="nav">
+    <a href="index.html">Home</a>
+    <a href="theory.html">Theory</a>
+    <a href="noise-sources.html">Noise Sources</a>
+    <a href="noise-phonon.html">Phonon</a>
+    <a href="nonstationary-phonon-equivalent-temperature.html" class="active">Nonstationary Phonon</a>
+    <a href="signal-processing.html">Signal Processing</a>
+  </nav>
+
+  <main class="container">
+    <section class="card">
+      <h2>Setup</h2>
+      <p>Assume absorber temperature after an event is</p>
+      <p>\[
+      T_A(t)=T_0+\Delta T e^{-t/\tau_p},\qquad \Delta T=T_1-T_0,\quad t\ge 0,
+      \]</p>
+      <p>while the KID island is actively held near \(T_0\). We approximate the time-varying absorber-KID phonon noise with one stationary equivalent temperature \(T_{\mathrm{eq}}\).</p>
+    </section>
+
+    <section class="card">
+      <h2>Definition</h2>
+      <p>For a fixed linear estimator/filter \(w(t)\) designed under stationary-noise assumptions, define \(T_{\mathrm{eq}}\) by matching output variance:</p>
+      <p>\[
+      \int_0^\infty |w(t)|^2\,T_A(t)^2\,dt
+      =
+      T_{\mathrm{eq}}^2 \int_0^\infty |w(t)|^2\,dt.
+      \]</p>
+      <p>So</p>
+      <p>\[
+      T_{\mathrm{eq}}^2=
+      \frac{\int_0^\infty |w(t)|^2\,T_A(t)^2\,dt}
+      {\int_0^\infty |w(t)|^2\,dt}.
+      \]</p>
+      <p>This corresponds to the common \(S_P\propto T^2\) thermal-fluctuation scaling for the link-noise term.</p>
+    </section>
+
+    <section class="card">
+      <h2>Single-Exponential Pulse Case</h2>
+      <p>If the effective stationary optimal-filter weighting is \(|w(t)|^2\propto e^{-2t/\tau_p}\), then:</p>
+      <p>\[
+      T_{\mathrm{eq}}^2 = T_0^2+\frac{4}{3}T_0\Delta T+\frac{1}{2}\Delta T^2.
+      \]</p>
+      <p>Small-pulse limit (\(\Delta T\ll T_0\)):</p>
+      <p>\[
+      T_{\mathrm{eq}}\approx T_0+\frac{2}{3}\Delta T.
+      \]</p>
+      <p>Large-pulse limit (\(\Delta T\gg T_0\)):</p>
+      <p>\[
+      T_{\mathrm{eq}}\approx \frac{\Delta T}{\sqrt{2}},\qquad
+      \frac{T_{\mathrm{eq}}}{T_1}\to \frac{1}{\sqrt{2}}.
+      \]</p>
+    </section>
+
+    <section class="card">
+      <h2>Bounds and Interpretation</h2>
+      <p>Because \(T_A(t)\in[T_0,T_1]\) and \(T_{\mathrm{eq}}^2\) is a positive weighted average of \(T_A(t)^2\):</p>
+      <p>\[
+      T_0 \le T_{\mathrm{eq}} \le T_1.
+      \]</p>
+      <p>So this approximation cannot exceed the worst-case assumption that the absorber stays at \(T_1\) for the full filter window.</p>
+      <p>The peak contributes more strongly than the long tail, but weighted by \(|w(t)|^2\), not by pulse amplitude alone.</p>
+    </section>
+  </main>
+</body>
+</html>
