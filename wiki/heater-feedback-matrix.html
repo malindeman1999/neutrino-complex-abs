@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Heater Feedback in M Matrix | TKID Neutrino Detector Docs</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['\\(', '\\)'], ['$', '$']] }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+</head>
+<body>
+  <header class="hero">
+    <h1>Heater Feedback in the Matrix Model</h1>
+    <p>How to include KID-island heater feedback driven by measured phase/quadrature.</p>
+  </header>
+
+  <nav class="nav">
+    <a href="index.html">Home</a>
+    <a href="theory.html">Theory</a>
+    <a href="m-matrix.html">M Matrix</a>
+    <a href="signal-processing.html">Signal Processing</a>
+    <a href="heater-feedback-matrix.html" class="active">Heater Feedback</a>
+  </nav>
+
+  <main class="container">
+    <section class="card">
+      <h2>Feedback Definition</h2>
+      <p>Let heater-power perturbation be proportional to measured readout quadrature \(Q\):</p>
+      <p>\[
+      \delta P_{\mathrm{heater}} = K_Q\,\delta Q,\qquad
+      K_Q\equiv \frac{dP_{\mathrm{heater}}}{dQ}.
+      \]</p>
+      <p>For a general linear readout projection:</p>
+      <p>\[
+      \delta Q = c_r\,\delta r + c_\phi\,\delta\phi,
+      \]</p>
+      <p>so</p>
+      <p>\[
+      \delta P_{\mathrm{heater}} = K_Q(c_r\,\delta r + c_\phi\,\delta\phi).
+      \]</p>
+    </section>
+
+    <section class="card">
+      <h2>Where It Enters</h2>
+      <p>Only the KID thermal row is modified. In the existing convention, the thermal row (row 3) has electrical-to-thermal terms \(m_{31}\delta r + m_{32}\delta\phi\), then thermal storage/leak terms.</p>
+      <p>Include heater feedback by adding \(-\delta P_{\mathrm{heater}}\) to that row, which is equivalent to:</p>
+      <p>\[
+      m_{31}\rightarrow m_{31}^{(\mathrm{fb})}=m_{31}-K_Q c_r,\qquad
+      m_{32}\rightarrow m_{32}^{(\mathrm{fb})}=m_{32}-K_Q c_\phi.
+      \]</p>
+      <p>All other matrix entries are unchanged.</p>
+    </section>
+
+    <section class="card">
+      <h2>Modified Matrix</h2>
+      <p>Using the current 4-state form (\(Y=[r,\phi,T_{KID},T_{ABS}]^T\)):</p>
+      <p>\[
+      M_{\mathrm{fb}}(\omega)=
+      \begin{bmatrix}
+      m_{11} & m_{12} & m_{13} & 0\\
+      m_{21} & m_{22} & m_{23} & 0\\
+      m_{31}-K_Q c_r & m_{32}-K_Q c_\phi & m_{33} & m_{34}\\
+      0 & 0 & m_{43} & m_{44}
+      \end{bmatrix}.
+      \]</p>
+      <p>If your measured channel is directly the model phase state (\(\delta Q=\delta\phi\)), then \(c_r=0,\;c_\phi=1\), so only one entry changes:</p>
+      <p>\[
+      m_{32}\rightarrow m_{32}-K_Q.
+      \]</p>
+    </section>
+
+    <section class="card">
+      <h2>Sign for Negative Feedback</h2>
+      <p>For current model signs at \(f=0\), a positive absorber-power perturbation gives positive phase response:</p>
+      <p>\[
+      (M^{-1})_{\phi,P_{ABS}} > 0.
+      \]</p>
+      <p>So absorber heating drives \(\delta\phi>0\). To oppose that heating with the heater loop, require \(\delta P_{\mathrm{heater}}<0\) for \(\delta\phi>0\), hence:</p>
+      <p>\[
+      K_Q<0
+      \]
+      (for \(Q\) aligned with model \(\phi\)).</p>
+      <p>If your readout electronics define \(Q\) with opposite polarity, flip the sign accordingly.</p>
+    </section>
+
+    <section class="card">
+      <h2>Frequency-Dependent Loop Extension</h2>
+      <p>With loop filter/delay \(F(\omega)\), replace \(K_Q\) by \(K_QF(\omega)\):</p>
+      <p>\[
+      m_{31}\rightarrow m_{31}-K_QF(\omega)c_r,\qquad
+      m_{32}\rightarrow m_{32}-K_QF(\omega)c_\phi.
+      \]</p>
+      <p>This is the standard form for closing a linear feedback path in the frequency-domain model.</p>
+    </section>
+  </main>
+</body>
+</html>

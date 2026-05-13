@@ -56,7 +56,48 @@
 
     <section class="card">
       <h2>Single-Exponential Pulse Case</h2>
-      <p>If the effective stationary optimal-filter weighting is \(|w(t)|^2\propto e^{-2t/\tau_p}\), then:</p>
+      <p>If the effective stationary optimal-filter weighting is \(|w(t)|^2\propto e^{-2t/\tau_p}\), write</p>
+      <p>\[
+      T_{\mathrm{eq}}^2=
+      \frac{\int_0^\infty e^{-2t/\tau_p}\left(T_0+\Delta T e^{-t/\tau_p}\right)^2dt}
+      {\int_0^\infty e^{-2t/\tau_p}dt}.
+      \]</p>
+      <p>Expand the square in the numerator:</p>
+      <p>\[
+      \left(T_0+\Delta T e^{-t/\tau_p}\right)^2
+      =T_0^2+2T_0\Delta T e^{-t/\tau_p}+\Delta T^2 e^{-2t/\tau_p}.
+      \]</p>
+      <p>So</p>
+      <p>\[
+      \int_0^\infty e^{-2t/\tau_p}\left(T_0+\Delta T e^{-t/\tau_p}\right)^2dt
+      =
+      T_0^2 I_2 + 2T_0\Delta T I_3 + \Delta T^2 I_4,
+      \]</p>
+      <p>with</p>
+      <p>\[
+      I_m\equiv \int_0^\infty e^{-mt/\tau_p}dt=\frac{\tau_p}{m}.
+      \]</p>
+      <p>Therefore</p>
+      <p>\[
+      I_2=\frac{\tau_p}{2},\qquad
+      I_3=\frac{\tau_p}{3},\qquad
+      I_4=\frac{\tau_p}{4}.
+      \]</p>
+      <p>Numerator:</p>
+      <p>\[
+      N
+      =
+      \tau_p\left(
+      \frac{T_0^2}{2}
+      +\frac{2T_0\Delta T}{3}
+      +\frac{\Delta T^2}{4}
+      \right).
+      \]</p>
+      <p>Denominator:</p>
+      <p>\[
+      D=\int_0^\infty e^{-2t/\tau_p}dt=\frac{\tau_p}{2}.
+      \]</p>
+      <p>Take the ratio \(T_{\mathrm{eq}}^2=N/D\):</p>
       <p>\[
       T_{\mathrm{eq}}^2 = T_0^2+\frac{4}{3}T_0\Delta T+\frac{1}{2}\Delta T^2.
       \]</p>
@@ -76,6 +117,12 @@
       <p>Because \(T_A(t)\in[T_0,T_1]\) and \(T_{\mathrm{eq}}^2\) is a positive weighted average of \(T_A(t)^2\):</p>
       <p>\[
       T_0 \le T_{\mathrm{eq}} \le T_1.
+      \]</p>
+      <p>Direct check against the constant-\(T_1\) worst case:</p>
+      <p>\[
+      T_1^2-T_{\mathrm{eq}}^2
+      =(T_0+\Delta T)^2-\left(T_0^2+\frac{4}{3}T_0\Delta T+\frac{1}{2}\Delta T^2\right)
+      =\frac{2}{3}T_0\Delta T+\frac{1}{2}\Delta T^2>0.
       \]</p>
       <p>So this approximation cannot exceed the worst-case assumption that the absorber stays at \(T_1\) for the full filter window.</p>
       <p>The peak contributes more strongly than the long tail, but weighted by \(|w(t)|^2\), not by pulse amplitude alone.</p>

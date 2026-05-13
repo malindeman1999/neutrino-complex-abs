@@ -71,6 +71,8 @@ class SensorInputs:
     beta_phi: float
     Tc_K: float
     pg_drive_dBm: float
+    heater_drive_dBm: float
+    kq_dPheater_dQ_W_per_Q: float
     bifurcation_energy_scale_J: float
     pbif_typical_min_dBm: float
     pbif_typical_max_dBm: float
@@ -119,6 +121,8 @@ class Version1SensorInputs(SensorInputs):
     beta_phi: float = 0.0
     Tc_K: float = 2.0
     pg_drive_dBm: float = -100.0
+    heater_drive_dBm: float = -300.0
+    kq_dPheater_dQ_W_per_Q: float = 0.0
     bifurcation_energy_scale_J: float = 1.4323944878270582e-13
     pbif_typical_min_dBm: float = -95.0
     pbif_typical_max_dBm: float = -70.0
@@ -264,7 +268,7 @@ class Sensor:
         """Thermal conductance set by operating-point temperature elevation."""
         if self.deltaT_abs_over_bath_setpoint_K <= 0.0:
             raise ValueError("T0_K must be greater than Tb_K to define positive thermal elevation")
-        return self.P0_W / self.deltaT_abs_over_bath_setpoint_K
+        return self.P_island_total_W / self.deltaT_abs_over_bath_setpoint_K
 
     @cached_property
     def G_absorber_W_per_K(self) -> float:
@@ -1008,7 +1012,9 @@ class Sensor:
 
         # KID thermal row: power-balance with bath link and absorber coupling.
         m31 = -((1.0 + self.beta_A / 2.0) * self.P0_W)
-        m32 = +(q * x * (self.beta_A + 2.0) * self.P0_W)
+        # Optional heater feedback via measured Q (phase-like channel): dP_heater = KQ * dQ.
+        # In this convention it enters as a subtraction in the KID thermal equation.
+        m32 = +(q * x * (self.beta_A + 2.0) * self.P0_W) - self.kq_dPheater_dQ_W_per_Q
         m33 = (1.0j * omega * c_kid) + g + g_ak - (self.P0_W * self.alpha_A / self.T0_K)
         m34 = -g_ak
 
@@ -1140,6 +1146,16 @@ class Sensor:
     def Pg_W(self) -> float:
         """Generator/readout drive power from input drive level in dBm."""
         return 1.0e-3 * (10.0 ** (self.pg_drive_dBm / 10.0))
+
+    @cached_property
+    def P_heater_W(self) -> float:
+        """Heater power deposited on the KID island from heater drive level in dBm."""
+        return 1.0e-3 * (10.0 ** (self.heater_drive_dBm / 10.0))
+
+    @cached_property
+    def P_island_total_W(self) -> float:
+        """Total KID-island power used to set bath-link conductance at operating point."""
+        return self.P0_W + self.P_heater_W
 
     @cached_property
     def p0_over_pbif_target(self) -> float:
@@ -1373,6 +1389,9 @@ class Sensor:
             "Tc_K": self.Tc_K,
             "P0_W": self.P0_W,
             "Pg_W": self.Pg_W,
+            "P_heater_W": self.P_heater_W,
+            "P_island_total_W": self.P_island_total_W,
+            "kq_dPheater_dQ_W_per_Q": self.kq_dPheater_dQ_W_per_Q,
             "pg_to_p0_factor": self.pg_to_p0_factor,
             "delta_J": self.delta_J,
             "eqp_J": self.eqp_J,

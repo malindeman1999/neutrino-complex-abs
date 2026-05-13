@@ -36,6 +36,7 @@ INPUT_SECTIONS = [
             "T0_K",
             "Tb_K",
             "pg_drive_dBm",
+            "heater_drive_dBm",
             "f0_Hz",
             "detuning_widths",
             "nep_sufficiency_percent",
@@ -65,6 +66,7 @@ INPUT_SECTIONS = [
             "tau_qp_s",
             "kinetic_inductance_fraction",
             "alpha_phi",
+            "kq_dPheater_dQ_W_per_Q",
         ],
     ),
 ]
@@ -74,6 +76,7 @@ LABELS = {
     "T0_K": "T0 [K]",
     "Tb_K": "Tb [K]",
     "pg_drive_dBm": "Drive [dBm]",
+    "heater_drive_dBm": "Heater [dBm]",
     "f0_Hz": "f0 [Hz]",
     "detuning_widths": "Detuning [widths]",
     "nep_sufficiency_percent": "NEP suff [%]",
@@ -88,6 +91,7 @@ LABELS = {
     "tau_qp_s": "tau_qp [s]",
     "kinetic_inductance_fraction": "kinetic frac",
     "alpha_phi": "alpha_phi",
+    "kq_dPheater_dQ_W_per_Q": "KQ [W/Q]",
 }
 
 
